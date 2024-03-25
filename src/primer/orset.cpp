@@ -54,7 +54,7 @@ void ORSet<T>::Merge(const ORSet<T> &other) {
     if (std::find(other.tombstones.begin(), other.tombstones.end(), *it) != other.tombstones.end()) {
       it = elements.erase(it);
     } else {
-      ++it;
+      it++;
     }
   }
   
