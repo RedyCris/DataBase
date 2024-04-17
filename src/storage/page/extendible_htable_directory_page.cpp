@@ -20,40 +20,45 @@
 
 namespace bustub {
 
-void ExtendibleHTableDirectoryPage::Init(uint32_t max_depth) {
+void ExtendibleHTableDirectoryPage::Init(uint32_t max_depth) {//初始化目录表
   max_depth_ = max_depth;
   global_depth_ = 0;
-  std::fill(bucket_page_ids_, bucket_page_ids_ + HTABLE_DIRECTORY_ARRAY_SIZE, INVALID_PAGE_ID);
-  std::fill(local_depths_, local_depths_ + HTABLE_DIRECTORY_ARRAY_SIZE, 0);
+  for(uint64_t i=0;i<HTABLE_DIRECTORY_ARRAY_SIZE;++i)
+  {
+    bucket_page_ids_[i]=INVALID_PAGE_ID;
+    local_depths_[i]=0;
+  }
 }
 
-auto ExtendibleHTableDirectoryPage::HashToBucketIndex(uint32_t hash) const -> uint32_t {
+auto ExtendibleHTableDirectoryPage::HashToBucketIndex(uint32_t hash) const -> uint32_t {//将哈希值映射到桶索引
   uint32_t mask = GetGlobalDepthMask();
-  return hash & mask;
+  return hash & mask; //通过与全局深度掩码进行按位与操作，可以得到哈希值对应的桶索引。
 }
 
 auto ExtendibleHTableDirectoryPage::GetBucketPageId(uint32_t bucket_idx) const -> page_id_t {
-  assert(bucket_idx < Size());
   return bucket_page_ids_[bucket_idx];
 }
 
 void ExtendibleHTableDirectoryPage::SetBucketPageId(uint32_t bucket_idx, page_id_t bucket_page_id) {
-  assert(bucket_idx < Size());
   bucket_page_ids_[bucket_idx] = bucket_page_id;
 }
 
-auto ExtendibleHTableDirectoryPage::GetSplitImageIndex(uint32_t bucket_idx) const -> uint32_t {
+auto ExtendibleHTableDirectoryPage::GetSplitImageIndex(uint32_t bucket_idx) const -> uint32_t {//分裂时会产生2个桶，要从原有桶索引到另一个分裂的桶
   uint32_t split_idx = bucket_idx ^ (1 << (local_depths_[bucket_idx] - 1));
   return split_idx;
 }
 
+auto ExtendibleHTableDirectoryPage::GetGlobalDepthMask() const -> uint32_t { return (1 << global_depth_) - 1; };
+
 auto ExtendibleHTableDirectoryPage::GetGlobalDepth() const -> uint32_t { return global_depth_; }
+
+auto ExtendibleHTableDirectoryPage::GetMaxDepth() const -> uint32_t { return max_depth_; };
 
 void ExtendibleHTableDirectoryPage::IncrGlobalDepth() {
   if (global_depth_ >= max_depth_) {
     return;
   }
-  for (int i = 0; i < 1 << global_depth_; i++) {
+  for (int i = 0; i < 1 << global_depth_; i++) {             //全局深度增加之后，会产生新生成的桶，把新生成的桶与原始桶的值设为一样的
     bucket_page_ids_[(1 << global_depth_) + i] = bucket_page_ids_[i];
     local_depths_[(1 << global_depth_) + i] = local_depths_[i];
   }
@@ -67,19 +72,22 @@ void ExtendibleHTableDirectoryPage::DecrGlobalDepth() {
   global_depth_--;
 }
 
-auto ExtendibleHTableDirectoryPage::CanShrink() -> bool {
-  return std::all_of(local_depths_, local_depths_ + Size(), [this](uint32_t depth) { return depth < global_depth_; });
+auto ExtendibleHTableDirectoryPage::CanShrink() -> bool {  //检查哈希表是否可以缩小。如果所有桶的局部深度都小于全局深度，则可以进行缩小。
+  for (uint32_t i = 0; i < Size(); ++i) {
+    if (local_depths_[i] >= global_depth_) {
+      return false; // 只要有一个桶的局部深度不小于全局深度，就返回 false
+    }
+  }
+  return true; // 如果所有桶的局部深度都小于全局深度，则返回 true
 }
 
 auto ExtendibleHTableDirectoryPage::Size() const -> uint32_t { return 1 << global_depth_; }
 
 auto ExtendibleHTableDirectoryPage::GetLocalDepth(uint32_t bucket_idx) const -> uint32_t {
-  assert(bucket_idx < Size());
   return local_depths_[bucket_idx];
 }
 
 void ExtendibleHTableDirectoryPage::SetLocalDepth(uint32_t bucket_idx, uint8_t local_depth) {
-  assert(bucket_idx < Size());
   local_depths_[bucket_idx] = local_depth;
 }
 
@@ -91,7 +99,6 @@ void ExtendibleHTableDirectoryPage::IncrLocalDepth(uint32_t bucket_idx) {
 }
 
 void ExtendibleHTableDirectoryPage::DecrLocalDepth(uint32_t bucket_idx) {
-  assert(bucket_idx < Size());
   if (local_depths_[bucket_idx] == 0) {
     return;
   }

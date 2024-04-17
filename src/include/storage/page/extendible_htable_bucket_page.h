@@ -84,16 +84,20 @@ class ExtendibleHTableBucketPage {
    * @return true if removed, false if not found
    */
   auto Remove(const KeyType &key, const KeyComparator &cmp) -> bool;
+  
 
-////////
+//////////
+//在数组的确切位置插入值
   void InsertAt(uint32_t idx, const KeyType &key, const ValueType &value);
-///////
 
+//有好几个函数都需要找寻key所对应的数组中的位置，所以单拎出来实现
   auto KeyIndex(const KeyType &key, const KeyComparator &cmp) const -> uint32_t;
-////////
 
-
+//在数组的确切位置删除值
   void RemoveAt(uint32_t bucket_idx);
+//////////
+
+
 
   /**
    * @brief Gets the key at an index in the bucket.

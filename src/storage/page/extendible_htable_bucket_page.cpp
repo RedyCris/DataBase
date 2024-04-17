@@ -19,13 +19,13 @@
 namespace bustub {
 
 template <typename K, typename V, typename KC>
-void ExtendibleHTableBucketPage<K, V, KC>::Init(uint32_t max_size) {
+void ExtendibleHTableBucketPage<K, V, KC>::Init(uint32_t max_size) {  //初始化一个桶页面
   max_size_ = max_size;
   size_ = 0;
 }
 
 template <typename K, typename V, typename KC>
-auto ExtendibleHTableBucketPage<K, V, KC>::Lookup(const K &key, V &value, const KC &cmp) const -> bool {
+auto ExtendibleHTableBucketPage<K, V, KC>::Lookup(const K &key, V &value, const KC &cmp) const -> bool { //在桶页中查找给定键值的项
   int size = Size();
   if (size == 0) {
     value = {};
@@ -58,7 +58,7 @@ auto ExtendibleHTableBucketPage<K, V, KC>::Insert(const K &key, const V &value, 
   }
 
   uint32_t idx = KeyIndex(key, cmp);
-  if (cmp(key, KeyAt(idx)) == 0) {
+  if (cmp(key, KeyAt(idx)) == 0) {//如果已经有这个键值对了，就返回false
     return false;
   }
 
@@ -83,25 +83,16 @@ auto ExtendibleHTableBucketPage<K, V, KC>::Remove(const K &key, const KC &cmp) -
 }
 
 template <typename K, typename V, typename KC>
-auto ExtendibleHTableBucketPage<K, V, KC>::KeyIndex(const K &key, const KC &cmp) const -> uint32_t {
+auto ExtendibleHTableBucketPage<K, V, KC>::KeyIndex(const K &key, const KC &cmp) const -> uint32_t {//确定给定键在数组中的位置（如果已有此键）或是应放入的位置（本来没有此键）
   int size = Size();
 
-  int left = 0;
-  int right = size - 1;
-  while (left <= right) {
-    int mid = (left + right) / 2;
-    int ret = cmp(key, array_[mid].first);
-
-    if (ret == 1) {
-      left = mid + 1;
-    } else if (ret == -1) {
-      right = mid - 1;
-    } else {
-      return mid;
+  for (int i = 0; i < size; ++i) {//如果找到第一个大于等于给定键的位置，则返回该位置索引
+    if (cmp(key, array_[i].first) <= 0) {
+      return i;
     }
   }
 
-  return left;
+  return size; // 如果未找到，则返回 size，表示应该插入到最后
 }
 
 template <typename K, typename V, typename KC>
@@ -125,7 +116,7 @@ void ExtendibleHTableBucketPage<K, V, KC>::RemoveAt(uint32_t idx) {
 }
 
 template <typename K, typename V, typename KC>
-auto ExtendibleHTableBucketPage<K, V, KC>::KeyAt(uint32_t idx) const -> K {
+auto ExtendibleHTableBucketPage<K, V, KC>::KeyAt(uint32_t idx) const -> K {//返回确定位置的键
   return array_[idx].first;
 }
 
