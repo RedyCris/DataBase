@@ -40,7 +40,7 @@ BufferPoolManager::BufferPoolManager(size_t pool_size, DiskManager *disk_manager
 BufferPoolManager::~BufferPoolManager() { delete[] pages_; }
 
 auto BufferPoolManager::NewPage(page_id_t *page_id) -> Page * {
-  std::scoped_lock<std::mutex> lock(latch_);
+  std::lock_guard<std::mutex> guard(latch_);
   Page *page;
   frame_id_t frame_id = -1;
   if (!free_list_.empty()) {
@@ -71,7 +71,7 @@ auto BufferPoolManager::NewPage(page_id_t *page_id) -> Page * {
 }
 
 auto BufferPoolManager::FetchPage(page_id_t page_id, [[maybe_unused]] AccessType access_type) -> Page * {
-  std::scoped_lock<std::mutex> lock(latch_);
+  std::lock_guard<std::mutex> guard(latch_);
   if (page_id == INVALID_PAGE_ID) {
     return nullptr;
   }
@@ -118,7 +118,7 @@ auto BufferPoolManager::FetchPage(page_id_t page_id, [[maybe_unused]] AccessType
 }
 
 auto BufferPoolManager::UnpinPage(page_id_t page_id, bool is_dirty, [[maybe_unused]] AccessType access_type) -> bool {
-  std::scoped_lock<std::mutex> lock(latch_);
+  std::lock_guard<std::mutex> guard(latch_);
   if (page_id == INVALID_PAGE_ID) {
     return false;
   }
@@ -143,7 +143,7 @@ auto BufferPoolManager::UnpinPage(page_id_t page_id, bool is_dirty, [[maybe_unus
 }
 
 auto BufferPoolManager::FlushPage(page_id_t page_id) -> bool {
-  std::scoped_lock<std::mutex> lock(latch_);
+  std::lock_guard<std::mutex> guard(latch_);
   if (page_id == INVALID_PAGE_ID) {
     return false;
   }
@@ -162,7 +162,7 @@ auto BufferPoolManager::FlushPage(page_id_t page_id) -> bool {
 }
 
 void BufferPoolManager::FlushAllPages() {
-  std::scoped_lock<std::mutex> lock(latch_);
+  std::lock_guard<std::mutex> guard(latch_);
   for (const auto &it : page_table_) {
     if (it.first == INVALID_PAGE_ID) {
       continue;
@@ -177,7 +177,7 @@ void BufferPoolManager::FlushAllPages() {
 }
 
 auto BufferPoolManager::DeletePage(page_id_t page_id) -> bool {
-  std::scoped_lock<std::mutex> lock(latch_);
+  std::lock_guard<std::mutex> guard(latch_);
   if (page_id == INVALID_PAGE_ID) {
     return true;
   }
