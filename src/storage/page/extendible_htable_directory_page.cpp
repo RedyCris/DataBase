@@ -48,7 +48,7 @@ auto ExtendibleHTableDirectoryPage::GetSplitImageIndex(uint32_t bucket_idx) cons
   return split_idx;
 }
 
-auto ExtendibleHTableDirectoryPage::GetGlobalDepthMask() const -> uint32_t { return (1 << global_depth_) - 1; };
+auto ExtendibleHTableDirectoryPage::GetGlobalDepthMask() const -> uint32_t { return (1 << global_depth_) - 1; };//返回全局深度的掩码，全局深度代表的后几位为1，其余全为0
 
 auto ExtendibleHTableDirectoryPage::GetGlobalDepth() const -> uint32_t { return global_depth_; }
 
@@ -58,7 +58,7 @@ void ExtendibleHTableDirectoryPage::IncrGlobalDepth() {
   if (global_depth_ >= max_depth_) {
     return;
   }
-  for (int i = 0; i < 1 << global_depth_; i++) {             //全局深度增加之后，会产生新生成的桶，把新生成的桶与原始桶的值设为一样的
+  for (int i = 0; i < 1 << global_depth_; i++) {             //全局深度增加之后，会新生成可以存放桶id的位置，把原有位置对应赋值给新位置，使他们都先指向对应的原有的桶
     bucket_page_ids_[(1 << global_depth_) + i] = bucket_page_ids_[i];
     local_depths_[(1 << global_depth_) + i] = local_depths_[i];
   }

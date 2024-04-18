@@ -123,6 +123,14 @@ class DiskExtendibleHashTable {
                       ExtendibleHTableBucketPage<K, V, KC> *new_bucket, uint32_t new_bucket_idx,
                       uint32_t local_depth_mask);
 
+  //添加的桶分裂的函数
+  auto SplitBucket(ExtendibleHTableDirectoryPage *directory, ExtendibleHTableBucketPage<K, V, KC> *bucket,
+                   uint32_t bucket_idx) -> bool ;
+
+  //添加的用于合并桶的函数
+  void MaybeMergeBucket(ExtendibleHTableDirectoryPage *directory, ExtendibleHTableBucketPage<K, V, KC> *bucket,
+                        uint32_t bucket_idx);
+  
   // member variables
   std::string index_name_;
   BufferPoolManager *bpm_;
