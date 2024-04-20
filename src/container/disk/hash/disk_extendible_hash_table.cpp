@@ -154,11 +154,43 @@ auto DiskExtendibleHashTable<K, V, KC>::Insert(const K &key, const V &value, Tra
     //把相应的局部深度增加，用于分裂
     directory->IncrLocalDepth(bucket_idx);
 
-    //进行桶的分裂
-    if (!SplitBucket(directory, bucket, bucket_idx)) {
+    //创建新分裂的桶
+    page_id_t split_page_id = INVALID_PAGE_ID;
+    BasicPageGuard split_bucket_guard = bpm_->NewPageGuarded(&split_page_id);
+    if (split_page_id == INVALID_PAGE_ID) {
       return false;
     }
+    auto split_bucket = split_bucket_guard.AsMut<ExtendibleHTableBucketPage<K, V, KC>>();
+    split_bucket->Init();
 
+    //获取新分裂桶的索引并更新目录表
+    uint32_t split_idx = directory->GetSplitImageIndex(bucket_idx);
+    uint32_t local_depth = directory->GetLocalDepth(bucket_idx);
+    directory->SetBucketPageId(split_idx, split_page_id);
+    directory->SetLocalDepth(split_idx, local_depth);
+
+    // 重新分配原有桶中的内容
+    page_id_t bucket_page_id = directory->GetBucketPageId(bucket_idx);
+    if (bucket_page_id == INVALID_PAGE_ID) {
+      return false;
+    }
+    //获取原有桶中的内容
+    int size = bucket->Size();
+    std::list<std::pair<K, V>> entries;
+    for (int i = 0; i < size; i++) {
+      entries.push_back(bucket->EntryAt(i));
+    }
+    bucket->Clear();
+    //重新分配
+    for (const auto &entry : entries) {
+      uint32_t target_idx = directory->HashToBucketIndex(Hash(entry.first));
+      page_id_t target_page_id = directory->GetBucketPageId(target_idx);
+      if (target_page_id == bucket_page_id) {
+        bucket->Insert(entry.first, entry.second, cmp_);
+      } else if (target_page_id == split_page_id) {
+        split_bucket->Insert(entry.first, entry.second, cmp_);
+      }
+    }
     directory_guard.Drop();
     bucket_guard.Drop();
     return Insert(key, value, transaction);
