@@ -128,7 +128,7 @@ class DiskExtendibleHashTable {
                    uint32_t bucket_idx) -> bool ;
 
   //添加的用于合并桶的函数
-  void MaybeMergeBucket(ExtendibleHTableDirectoryPage *directory, ExtendibleHTableBucketPage<K, V, KC> *bucket,
+  void MergeBucket(ExtendibleHTableDirectoryPage *directory, ExtendibleHTableBucketPage<K, V, KC> *bucket,
                         uint32_t bucket_idx);
   
   // member variables

@@ -290,7 +290,7 @@ auto DiskExtendibleHashTable<K, V, KC>::Remove(const K &key, Transaction *transa
   }
 
   //可能需要桶合并
-  MaybeMergeBucket(directory, bucket, bucket_idx);
+  MergeBucket(directory, bucket, bucket_idx);
   while (directory->CanShrink()) {
     directory->DecrGlobalDepth();
   }
@@ -299,7 +299,7 @@ auto DiskExtendibleHashTable<K, V, KC>::Remove(const K &key, Transaction *transa
 
 //添加的用于合并桶的函数
 template <typename K, typename V, typename KC>
-  void DiskExtendibleHashTable<K, V, KC>::MaybeMergeBucket(ExtendibleHTableDirectoryPage *directory, ExtendibleHTableBucketPage<K, V, KC> *bucket,
+  void DiskExtendibleHashTable<K, V, KC>::MergeBucket(ExtendibleHTableDirectoryPage *directory, ExtendibleHTableBucketPage<K, V, KC> *bucket,
                         uint32_t bucket_idx) {
     //循环进行合并（如果合并后还能合并，那就继续合并）
     while (true) {
