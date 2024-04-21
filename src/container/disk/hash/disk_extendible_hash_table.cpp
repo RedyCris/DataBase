@@ -322,7 +322,42 @@ auto DiskExtendibleHashTable<K, V, KC>::Remove(const K &key, Transaction *transa
   }
 
   //可能需要桶合并
-  MergeBucket(directory, bucket, bucket_idx);
+  //循环进行合并（如果合并后还能合并，那就继续合并）
+    while (true) {
+      if (directory->GetLocalDepth(bucket_idx) == 0) {
+        break;
+      }
+      uint32_t split_idx = directory->GetSplitImageIndex(bucket_idx);
+      page_id_t split_page_id = directory->GetBucketPageId(split_idx);
+
+      //任务要求：只有具有相同的局部深度时，才能将桶与分裂桶合并。
+      if (directory->GetLocalDepth(split_idx) != directory->GetLocalDepth(bucket_idx)) {
+        break;
+      }
+
+      WritePageGuard split_bucket_guard = bpm_->FetchPageWrite(split_page_id);
+      auto split_bucket = split_bucket_guard.AsMut<ExtendibleHTableBucketPage<K, V, KC>>();
+
+      //任务要求：只能合并空桶
+      if (!bucket->IsEmpty() && !split_bucket->IsEmpty()) {
+        break;
+      }
+
+      int size = split_bucket->Size();
+      for (int i = 0; i < size; i++) {
+        std::pair<K, V> entry = split_bucket->EntryAt(i);
+        bucket->Insert(entry.first, entry.second, cmp_);
+      }
+      split_bucket->Clear();
+      split_bucket_guard.Drop();
+
+      //修改原来存放分裂桶位置的相关信息
+      page_id_t bucket_page_id = directory->GetBucketPageId(bucket_idx);
+      directory->DecrLocalDepth(bucket_idx);
+      uint32_t local_depth = directory->GetLocalDepth(bucket_idx);
+      directory->SetBucketPageId(split_idx, bucket_page_id);
+      directory->SetLocalDepth(split_idx, local_depth);
+    }
   while (directory->CanShrink()) {
     directory->DecrGlobalDepth();
   }
