@@ -68,18 +68,21 @@ auto ExtendibleHTableBucketPage<K, V, KC>::Insert(const K &key, const V &value, 
 
 template <typename K, typename V, typename KC>
 auto ExtendibleHTableBucketPage<K, V, KC>::Remove(const K &key, const KC &cmp) -> bool {
-  int size = Size();
-  if (size == 0) {
-    return false;
+  if(IsEmpty()){
+    return false;}
+  for(uint32_t i=0;i<size_;i++)
+  {
+    if(cmp(array_[i].first,key)==0)
+    {
+      for(uint32_t j=i;j<size_;j++)
+      {
+        array_[j]=array_[j+1];
+      }
+      size_--;
+      return true;
+    }
   }
-
-  uint32_t idx = KeyIndex(key, cmp);
-  if (cmp(key, KeyAt(idx)) != 0) {
-    return false;
-  }
-
-  RemoveAt(idx);
-  return true;
+  return false;
 }
 
 template <typename K, typename V, typename KC>

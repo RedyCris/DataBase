@@ -81,7 +81,7 @@ auto DiskExtendibleHashTable<K, V, KC>::GetValue(const K &key, std::vector<V> *r
   ReadPageGuard bucket_guard = bpm_->FetchPageRead(bucket_page_id);
   auto bucket = bucket_guard.As<ExtendibleHTableBucketPage<K, V, KC>>();
 
-  // look up the key in the bucket
+  // 在桶中找到key
   V value;
   if (bucket->Lookup(key, value, cmp_)) {
     result->push_back(value);
