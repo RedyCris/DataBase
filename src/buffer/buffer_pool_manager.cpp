@@ -27,11 +27,18 @@ BufferPoolManager::BufferPoolManager(size_t pool_size, DiskManager *disk_manager
   //     "BufferPoolManager is not implemented yet. If you have finished implementing BPM, please remove the throw "
   //     "exception line in `buffer_pool_manager.cpp`.");
 
-  // we allocate a consecutive memory space for the buffer pool
+  //初始化缓冲池
   pages_ = new Page[pool_size_];
+  for( size_t i = 0; i < pool_size_; ++i)
+  {
+    Page* page = pages_+i;
+    page->ResetMemory(); 
+  }
+
+  //创建一个LRUKReplacer对象，并将其指针赋值给replacer_
   replacer_ = std::make_unique<LRUKReplacer>(pool_size, replacer_k);
 
-  // Initially, every page is in the free list.
+  //开始时，所有页面都在空闲列
   for (size_t i = 0; i < pool_size_; ++i) {
     free_list_.emplace_back(static_cast<int>(i));
   }
@@ -43,6 +50,8 @@ auto BufferPoolManager::NewPage(page_id_t *page_id) -> Page * {
   std::lock_guard<std::mutex> guard(latch_);
   Page *page;
   frame_id_t frame_id = -1;
+
+  //找寻可以使用的frame
   if (!free_list_.empty()) {
     frame_id = free_list_.front();
     free_list_.pop_front();
@@ -52,6 +61,8 @@ auto BufferPoolManager::NewPage(page_id_t *page_id) -> Page * {
     }
   }
   page = pages_ + frame_id;
+  
+  //如果已经修改过就要先写回磁盘
   if (page->IsDirty()) {
     auto promise = disk_scheduler_->CreatePromise();
     auto future = promise.get_future();
@@ -59,6 +70,7 @@ auto BufferPoolManager::NewPage(page_id_t *page_id) -> Page * {
     future.get();
     page->is_dirty_ = false;
   }
+  //重新初始化page
   *page_id = AllocatePage();
   page_table_.erase(page->GetPageId());
   page->page_id_ = *page_id;
@@ -75,6 +87,7 @@ auto BufferPoolManager::FetchPage(page_id_t page_id, [[maybe_unused]] AccessType
   if (page_id == INVALID_PAGE_ID) {
     return nullptr;
   }
+  //先在缓冲池找
   if (page_table_.find(page_id) != page_table_.end()) {
     frame_id_t frame_id = page_table_[page_id];
     auto page = pages_ + frame_id;
@@ -82,8 +95,8 @@ auto BufferPoolManager::FetchPage(page_id_t page_id, [[maybe_unused]] AccessType
     replacer_->RecordAccess(frame_id);
     replacer_->SetEvictable(frame_id, false);
     return page;
-  }  // 不存在
-  // 分配替换帧->脏页面处理->更新基本数据->读取磁盘数据
+  }  
+  // 不存在就得分配frame->脏页面处理
   Page *page;
   frame_id_t frame_id = -1;
   if (!free_list_.empty()) {
@@ -102,6 +115,7 @@ auto BufferPoolManager::FetchPage(page_id_t page_id, [[maybe_unused]] AccessType
     future.get();
     page->is_dirty_ = false;
   }
+  //更新page基本数据并读取磁盘数据
   page_table_.erase(page->GetPageId());
   page->page_id_ = page_id;
   page_table_.emplace(page_id, frame_id);
@@ -122,8 +136,7 @@ auto BufferPoolManager::UnpinPage(page_id_t page_id, bool is_dirty, [[maybe_unus
   if (page_id == INVALID_PAGE_ID) {
     return false;
   }
-  auto it = page_table_.find(page_id);
-  if (it == page_table_.end()) {
+  if (page_table_.find(page_id) == page_table_.end()) {
     return false;
   }
   frame_id_t frame_id = page_table_[page_id];
@@ -134,7 +147,6 @@ auto BufferPoolManager::UnpinPage(page_id_t page_id, bool is_dirty, [[maybe_unus
   if (page->GetPinCount() <= 0) {
     return false;
   }
-
   page->pin_count_--;
   if (page->GetPinCount() == 0) {
     replacer_->SetEvictable(frame_id, true);
@@ -150,7 +162,8 @@ auto BufferPoolManager::FlushPage(page_id_t page_id) -> bool {
   auto it = page_table_.find(page_id);
   if (it == page_table_.end()) {
     return false;
-  }  // flush a page to disk
+  }  
+  //把页面写回磁盘
   frame_id_t frame_id = page_table_[page_id];
   auto page = pages_ + frame_id;
   auto promise = disk_scheduler_->CreatePromise();
@@ -182,12 +195,15 @@ auto BufferPoolManager::DeletePage(page_id_t page_id) -> bool {
     return true;
   }
   auto it = page_table_.find(page_id);
+  //如果没有在缓冲池中，直接释放即可
   if (it == page_table_.end()) {
     DeallocatePage(page_id);
     return true;
   }
+  //否则就要先把缓冲池中所占用的位置先释放并初始化，再释放page
   frame_id_t frame_id = page_table_[page_id];
   auto page = pages_ + frame_id;
+  //如果有被占用就不能释放
   if (page->GetPinCount() > 0) {
     return false;
   }

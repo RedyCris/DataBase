@@ -17,6 +17,7 @@ void BasicPageGuard::Drop() {
   page_ = nullptr;
 }
 
+//当发生赋值操作时，说明这个pageguard本来对应的page已经操作结束了，所以要用drop()来unpin一下
 auto BasicPageGuard::operator=(BasicPageGuard &&that) noexcept -> BasicPageGuard & {
   if (this == &that) {
     return *this;
@@ -25,7 +26,8 @@ auto BasicPageGuard::operator=(BasicPageGuard &&that) noexcept -> BasicPageGuard
   bpm_ = that.bpm_;
   page_ = that.page_;
   is_dirty_ = that.is_dirty_;
-
+  
+  //并且要把原来复制过来的那个pageguard给删掉
   that.bpm_ = nullptr;
   that.page_ = nullptr;
   return *this;
@@ -92,6 +94,7 @@ void WritePageGuard::Drop() {
   if (guard_.page_ != nullptr) {
     guard_.page_->WUnlatch();
   }
+  //写完后，page变为脏页
   guard_.is_dirty_ = true;
   guard_.Drop();
 }
