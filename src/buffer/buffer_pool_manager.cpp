@@ -211,13 +211,13 @@ auto BufferPoolManager::FetchPageBasic(page_id_t page_id) -> BasicPageGuard {
 
 auto BufferPoolManager::FetchPageRead(page_id_t page_id) -> ReadPageGuard {
   auto page = FetchPage(page_id);
-  page->RLatch();
+  //page->RLatch();
   return {this, page};
 }
 
 auto BufferPoolManager::FetchPageWrite(page_id_t page_id) -> WritePageGuard {
   auto page = FetchPage(page_id);
-  page->WLatch();
+  //page->WLatch();
   return {this, page};
 }
 
