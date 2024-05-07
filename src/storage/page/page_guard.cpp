@@ -40,7 +40,8 @@ auto BasicPageGuard::UpgradeRead() -> ReadPageGuard {
     page_->RLatch();
   }
   auto read_page_guard = ReadPageGuard(bpm_, page_);
-    bpm_ = nullptr;
+  //升级为读页面保护后也要把本来的页面保护删掉
+  bpm_ = nullptr;
   page_ = nullptr;
   return read_page_guard;
 }
@@ -50,7 +51,7 @@ auto BasicPageGuard::UpgradeWrite() -> WritePageGuard {
     page_->WLatch();
   }
   auto write_page_guard = WritePageGuard(bpm_, page_);
-    bpm_ = nullptr;
+  bpm_ = nullptr;
   page_ = nullptr;
   return write_page_guard;
 }  // NOLINT

@@ -37,18 +37,24 @@ DiskScheduler::~DiskScheduler() {
 void DiskScheduler::Schedule(DiskRequest r) {request_queue_.Put(std::move(r)); }
 
 void DiskScheduler::StartWorkerThread() {
-  std::optional<DiskRequest> re_;
-  while ((re_ = request_queue_.Get()) != std::nullopt) {
-    std::thread t_([this, request = std::move(re_.value())]() mutable {
-      if (request.is_write_) {
-        disk_manager_->WritePage(request.page_id_, request.data_);
-      } else {
-        disk_manager_->ReadPage(request.page_id_, request.data_);
-      }
-      request.callback_.set_value(true);
-    });
-    t_.detach(); // Detach the thread to allow it to run independently
-  }
+    while (true) {
+        std::optional<DiskRequest> re_ = request_queue_.Get();
+        
+        //如果值为空，则表示要退出循环
+        if (re_ == std::nullopt) {
+            break;
+        }
+
+        DiskRequest request = std::move(re_.value());
+        if (request.is_write_) {
+            disk_manager_->WritePage(request.page_id_, request.data_);
+        } else {
+            disk_manager_->ReadPage(request.page_id_, request.data_);
+        }
+
+        //将DiskRequest回调的值设置为信号完成
+        request.callback_.set_value(true);
+    }
 }
 
 }  // namespace bustub

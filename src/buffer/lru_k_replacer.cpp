@@ -20,8 +20,9 @@ LRUKReplacer::LRUKReplacer(size_t num_frames, size_t k) : replacer_size_(num_fra
 auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {  
    std::lock_guard<std::mutex> guard(latch_);
   bool target = false;
+  //先在历史队列中寻找，找到后存入frame_id中
     if(!hist_list_.empty()){
-        for (auto rit = hist_list_.rbegin(); rit != hist_list_.rend(); ++rit){
+        for (auto rit = hist_list_.rbegin(); rit != hist_list_.rend(); ++rit){//FIFO，所以从后往前找
             if(node_store_[*rit].is_evictable_){
                 *frame_id = *rit;
                 hist_list_.erase(std::next(rit).base());
@@ -30,7 +31,7 @@ auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
             }
         }
     }
-
+    //找不到的话就在缓存队列中找
     if(!target && !cache_list_.empty()){
         for (auto rit = cache_list_.rbegin(); rit != cache_list_.rend(); ++rit){
             if(node_store_[*rit].is_evictable_){
@@ -41,6 +42,7 @@ auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
             }
         }
     }
+    //最终找到就删去
     if(target){
         node_store_.erase(*frame_id);
         --curr_size_;
@@ -55,6 +57,7 @@ void LRUKReplacer::RecordAccess(frame_id_t frame_id) {
     throw std::invalid_argument(std::string("Invalid frame_id ")+ std::to_string(frame_id));
     }
     size_t new_count = ++node_store_[frame_id].hit_count_;
+    //分类讨论：本来没在队列中、现在到达k次访问、已经到达k次访问
     if(new_count == 1){ 
     ++curr_size_;
     hist_list_.emplace_front(frame_id);
