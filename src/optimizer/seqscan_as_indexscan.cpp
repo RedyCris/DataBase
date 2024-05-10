@@ -18,6 +18,7 @@ auto Optimizer::OptimizeSeqScanAsIndexScan(const bustub::AbstractPlanNodeRef &pl
   std::vector<AbstractPlanNodeRef> children;
   // 创建储存有逻辑连接情况下的那些逻辑表达式中子节点的优化节点
   std::vector<AbstractPlanNodeRef> logic_children;
+  std::vector<index_oid_t> index_ids;
   // 遍历计划的所有子节点，并对每个子节点进行优化
   for (const auto &child : plan->GetChildren()) {
     children.emplace_back(OptimizeSeqScanAsIndexScan(child));
@@ -49,8 +50,30 @@ auto Optimizer::OptimizeSeqScanAsIndexScan(const bustub::AbstractPlanNodeRef &pl
             uint32_t first_col_idx = first_column_value_expr->GetColIdx();
 
             // 遍历所有子表达式，检查是否涉及同一列
-            for (size_t i = 0; i < logic_expr->children_.size(); ++i) {
-              const auto *cmp_expr = dynamic_cast<const ComparisonExpression *>(logic_expr->children_[i].get());
+
+            auto children = logic_expr->children_;
+            children.clear();
+            std::queue<std::shared_ptr<AbstractExpression>> q;
+            for (const auto &i : logic_expr->children_) {
+              q.push(i);
+            }
+            while (!q.empty()) {
+              auto node = q.front();
+              q.pop();
+              auto expr = dynamic_cast<const ComparisonExpression *>(node.get());
+              if (expr != nullptr) {
+                children.push_back(node);
+              } else {
+                auto left = node->children_[0];
+                auto right = node->children_[1];
+                q.push(left);
+                q.push(right);
+              }
+            }
+
+            for (const auto &i : children) {
+              // std::cout << i->ToString() << std::endl;
+              const auto *cmp_expr = dynamic_cast<const ComparisonExpression *>(i.get());
               if (cmp_expr != nullptr) {
                 auto *column_value_expr = dynamic_cast<ColumnValueExpression *>(cmp_expr->children_[0].get());
                 if (column_value_expr == nullptr) {
@@ -67,12 +90,30 @@ auto Optimizer::OptimizeSeqScanAsIndexScan(const bustub::AbstractPlanNodeRef &pl
             }
           }
         }
-      }
 
-      // 如果是逻辑连接操作
-      if (logic_expr != nullptr && logic_expr->logic_type_ == LogicType::Or) {
-        // 遍历所有子表达式
-        for (const auto &child_expr : logic_expr->children_) {
+        // 借助队列实现逻辑词的完全分解
+        auto children = logic_expr->children_;
+        children.clear();
+        std::queue<std::shared_ptr<AbstractExpression>> q;
+        for (const auto &i : logic_expr->children_) {
+          q.push(i);
+        }
+        while (!q.empty()) {
+          auto node = q.front();
+          q.pop();
+          auto expr = dynamic_cast<const ComparisonExpression *>(node.get());
+          if (expr != nullptr) {
+            children.push_back(node);
+          } else {
+            auto left = node->children_[0];
+            auto right = node->children_[1];
+            q.push(left);
+            q.push(right);
+          }
+        }
+
+        for (const auto &child_expr : children) {
+          std::cout << child_expr->ToString() << std::endl;
           // 如果子表达式是比较表达式
           const auto *cmp_expr = dynamic_cast<const ComparisonExpression *>(child_expr.get());
           if (cmp_expr != nullptr && cmp_expr->comp_type_ == ComparisonType::Equal) {
@@ -89,25 +130,38 @@ auto Optimizer::OptimizeSeqScanAsIndexScan(const bustub::AbstractPlanNodeRef &pl
 
             if (column_value_expr != nullptr) {
               // 遍历所有索引
+              int i = 0;
               for (const auto *index : indices) {
                 // 获取索引关联的列
+                std::cout << i++ << std::endl;
                 const auto &columns = index->index_->GetKeyAttrs();
                 // 设置过滤列的id
                 std::vector<uint32_t> filter_column_ids = {column_value_expr->GetColIdx()};
                 // 如果过滤列和索引的列一致
                 if (filter_column_ids == columns) {
+                  if (index_ids.empty()) {
+                    index_ids.push_back(index->index_oid_);
+                  } else {
+                    if (index->index_oid_ != index_ids[0]) {
+                      return optimized_plan;
+                    }
+                  }
                   // 在logic_children中加上这个子节点的IndexScanPlanNode节点
-                  logic_children.emplace_back(std::make_shared<IndexScanPlanNode>(optimized_plan->output_schema_, table_info->oid_,
-                                                           index->index_oid_, seq_scan.filter_predicate_));
+                  logic_children.emplace_back(std::make_shared<IndexScanPlanNode>(
+                      optimized_plan->output_schema_, table_info->oid_, index->index_oid_, seq_scan.filter_predicate_));
+
                   break;
                 }
               }
             }
           }
         }
-        auto optimized_plan_node = plan->CloneWithChildren(std::move(logic_children));
-        return optimized_plan_node;
-      } else if (logic_expr == nullptr) { // 如果过滤谓词不是逻辑连接操作
+        std::cout << "==================\n";
+
+        return plan->CloneWithChildren(std::move(logic_children));
+      }
+      // 如果过滤谓词不是逻辑连接操作
+      if (logic_expr == nullptr) {
         // 如果过滤谓词是单个比较表达式
         const auto *cmp_expr = dynamic_cast<const ComparisonExpression *>(seq_scan.filter_predicate_.get());
         if (cmp_expr != nullptr && cmp_expr->comp_type_ == ComparisonType::Equal) {
@@ -117,7 +171,7 @@ auto Optimizer::OptimizeSeqScanAsIndexScan(const bustub::AbstractPlanNodeRef &pl
           const auto indices = catalog_.GetTableIndexes(table_info->name_);
           // 获取过滤列的值表达式
           auto *column_value_expr = dynamic_cast<ColumnValueExpression *>(cmp_expr->children_[0].get());
-            // 如果过滤列的值表达式为空，尝试交换操作数（对应实现1=v1这样的逻辑）
+          // 如果过滤列的值表达式为空，尝试交换操作数（对应实现1=v1这样的逻辑）
           if (column_value_expr == nullptr) {
             column_value_expr = dynamic_cast<ColumnValueExpression *>(cmp_expr->children_[1].get());
           }
@@ -144,5 +198,4 @@ auto Optimizer::OptimizeSeqScanAsIndexScan(const bustub::AbstractPlanNodeRef &pl
   // 返回优化后的计划
   return optimized_plan;
 }
-
 }  // namespace bustub
