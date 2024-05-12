@@ -10,7 +10,6 @@ WindowFunctionExecutor::WindowFunctionExecutor(ExecutorContext *exec_ctx, const 
 
 void WindowFunctionExecutor::Init() {
   child_executor_->Init();
-
   Tuple child_tuple;
   RID rid;
   std::vector<Tuple> child_tuples;
